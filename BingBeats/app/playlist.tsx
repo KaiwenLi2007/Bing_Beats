@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { LinearGradient } from "expo-linear-gradient";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -13,9 +14,29 @@ import { Audio, AVPlaybackStatus } from "expo-av";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { useCyclingTheme } from "./contexts/CyclingGradientContext";
 import { getPlaylist } from "./lib/api";
 import { flagEmoji } from "./lib/countries";
+import { colors } from "./lib/theme";
 import type { Track } from "./lib/types";
+
+/** Full-screen cycling gradient + safe area (matches home). */
+function PlaylistShell({ children }: { children: ReactNode }) {
+  const cycling = useCyclingTheme();
+  return (
+    <View style={styles.root}>
+      <LinearGradient
+        colors={[cycling.gradientTop, cycling.gradientBottom]}
+        end={{ x: 0.5, y: 1 }}
+        start={{ x: 0.5, y: 0 }}
+        style={StyleSheet.absoluteFillObject}
+      />
+      <SafeAreaView edges={["top", "bottom"]} style={styles.safe}>
+        <View style={styles.container}>{children}</View>
+      </SafeAreaView>
+    </View>
+  );
+}
 
 interface PlaylistState {
   country_code: string;
@@ -62,6 +83,7 @@ function SkeletonCard() {
 
 export default function PlaylistScreen() {
   const router = useRouter();
+  const cycling = useCyclingTheme();
   const { code, name, year } = useLocalSearchParams<{
     code?: string;
     name?: string;
@@ -176,7 +198,7 @@ export default function PlaylistScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <PlaylistShell>
         <View style={styles.headerRow}>
           <Pressable onPress={() => router.back()} style={styles.backButton}>
             <Text style={styles.backButtonText}>Back</Text>
@@ -194,13 +216,13 @@ export default function PlaylistScreen() {
           <SkeletonCard />
           <SkeletonCard />
         </View>
-      </SafeAreaView>
+      </PlaylistShell>
     );
   }
 
   if (error) {
     return (
-      <SafeAreaView style={styles.container}>
+      <PlaylistShell>
         <View style={styles.headerRow}>
           <Pressable onPress={() => router.back()} style={styles.backButton}>
             <Text style={styles.backButtonText}>Back</Text>
@@ -208,16 +230,19 @@ export default function PlaylistScreen() {
         </View>
         <Text style={styles.errorTitle}>Couldn&apos;t load this playlist</Text>
         <Text style={styles.errorText}>{error}</Text>
-        <Pressable onPress={loadPlaylist} style={styles.retryButton}>
+        <Pressable
+          onPress={loadPlaylist}
+          style={[styles.retryButton, { backgroundColor: cycling.accent }]}
+        >
           <Text style={styles.retryButtonText}>Retry</Text>
         </Pressable>
-      </SafeAreaView>
+      </PlaylistShell>
     );
   }
 
   if (!playlist || playlist.tracks.length === 0) {
     return (
-      <SafeAreaView style={styles.container}>
+      <PlaylistShell>
         <View style={styles.headerRow}>
           <Pressable onPress={() => router.back()} style={styles.backButton}>
             <Text style={styles.backButtonText}>Back</Text>
@@ -227,15 +252,18 @@ export default function PlaylistScreen() {
           No tracks found for {countryName} in {selectedYear}.
         </Text>
         <Text style={styles.emptyText}>Try a different year!</Text>
-        <Pressable onPress={() => router.back()} style={styles.retryButton}>
+        <Pressable
+          onPress={() => router.back()}
+          style={[styles.retryButton, { backgroundColor: cycling.accent }]}
+        >
           <Text style={styles.retryButtonText}>Choose Another Year</Text>
         </Pressable>
-      </SafeAreaView>
+      </PlaylistShell>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <PlaylistShell>
       <View style={styles.headerRow}>
         <Pressable onPress={() => router.back()} style={styles.backButton}>
           <Text style={styles.backButtonText}>Back</Text>
@@ -270,7 +298,7 @@ export default function PlaylistScreen() {
                 <Pressable
                   disabled={isBusy}
                   onPress={() => onToggleTrack(track)}
-                  style={styles.iconButton}
+                  style={[styles.iconButton, { backgroundColor: cycling.accent }]}
                 >
                   {isBusy ? (
                     <ActivityIndicator color="#ffffff" />
@@ -290,21 +318,28 @@ export default function PlaylistScreen() {
                   }}
                   style={styles.spotifyLinkButton}
                 >
-                  <Text style={styles.spotifyLinkText}>Spotify ↗</Text>
+                  <Text style={[styles.spotifyLinkText, { color: cycling.accent }]}>Spotify ↗</Text>
                 </Pressable>
               )}
             </View>
           );
         })}
       </ScrollView>
-    </SafeAreaView>
+    </PlaylistShell>
   );
 }
 
 const styles = StyleSheet.create({
+  root: {
+    backgroundColor: colors.bg.primary,
+    flex: 1
+  },
+  safe: {
+    backgroundColor: "transparent",
+    flex: 1
+  },
   container: {
     flex: 1,
-    backgroundColor: "#0a0a0a",
     paddingHorizontal: 16
   },
   headerRow: {
@@ -388,12 +423,11 @@ const styles = StyleSheet.create({
     marginTop: 10
   },
   retryButton: {
-    backgroundColor: "#1DB954",
-    borderRadius: 12,
-    minHeight: 48,
     alignItems: "center",
+    borderRadius: 12,
     justifyContent: "center",
-    marginTop: 18
+    marginTop: 18,
+    minHeight: 48
   },
   retryButtonText: {
     color: "#ffffff",
@@ -438,12 +472,11 @@ const styles = StyleSheet.create({
     marginTop: 4
   },
   iconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#1DB954",
     alignItems: "center",
-    justifyContent: "center"
+    borderRadius: 20,
+    height: 40,
+    justifyContent: "center",
+    width: 40
   },
   iconButtonText: {
     color: "#ffffff",
@@ -457,7 +490,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#232323"
   },
   spotifyLinkText: {
-    color: "#1DB954",
     fontSize: 13,
     fontWeight: "700"
   }
