@@ -1,6 +1,12 @@
 const SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token";
 const SPOTIFY_SEARCH_URL = "https://api.spotify.com/v1/search";
 
+// Spotify search: public docs often say limit up to 50, but with **Client Credentials**
+// the API rejects any limit above 10 with 400 "Invalid limit" (verified against live API).
+// We page with limit=10 (max allowed) and optionally a second request to still gather ~20 candidates.
+const SPOTIFY_SEARCH_PAGE_LIMIT = 10;
+const SPOTIFY_SEARCH_MAX_PAGES = 2;
+
 // In-memory cache for client credentials token.
 // This is enough for a single server instance and keeps code easy to follow.
 let cachedToken = null;
@@ -70,36 +76,78 @@ function pickTopTracks(tracks, limit = 6) {
   return [...withPreview, ...withoutPreview].slice(0, limit);
 }
 
+function dedupeTracksById(tracks) {
+  const seen = new Set();
+  return tracks.filter((t) => {
+    if (!t?.id || seen.has(t.id)) {
+      return false;
+    }
+    seen.add(t.id);
+    return true;
+  });
+}
+
 async function fetchPlaylistTracks(countryCode, year) {
   const accessToken = await getSpotifyAccessToken();
 
-  const params = new URLSearchParams({
-    q: `year:${year}`,
-    type: "track",
-    market: countryCode,
-    limit: "20"
-  });
-
-  const response = await fetch(`${SPOTIFY_SEARCH_URL}?${params.toString()}`, {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${accessToken}`
-    }
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Spotify search failed: ${response.status} ${errorText}`);
+  const yearNum = Math.trunc(Number(year));
+  if (!Number.isFinite(yearNum)) {
+    throw new Error("Invalid year for Spotify search.");
   }
 
-  const data = await response.json();
-  const trackItems = data?.tracks?.items || [];
+  const market = String(countryCode).trim().toUpperCase();
+  if (market.length !== 2) {
+    throw new Error("Invalid country_code for Spotify market (expected 2 letters).");
+  }
+
+  let rawItems = [];
+
+  for (let page = 0; page < SPOTIFY_SEARCH_MAX_PAGES; page += 1) {
+    const offset = page * SPOTIFY_SEARCH_PAGE_LIMIT;
+
+    const url = new URL(SPOTIFY_SEARCH_URL);
+    url.searchParams.set("q", `year:${yearNum}`);
+    url.searchParams.set("type", "track");
+    url.searchParams.set("market", market);
+    url.searchParams.set("limit", String(SPOTIFY_SEARCH_PAGE_LIMIT));
+    url.searchParams.set("offset", String(offset));
+
+    console.log("[Spotify] Search URL:", url.toString());
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${accessToken}`
+      }
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Spotify search failed: ${response.status} ${errorText}`);
+    }
+
+    const data = await response.json();
+    const pageItems = data?.tracks?.items || [];
+    rawItems = rawItems.concat(pageItems);
+
+    const total = data?.tracks?.total;
+    const noMore =
+      pageItems.length < SPOTIFY_SEARCH_PAGE_LIMIT ||
+      (typeof total === "number" && offset + pageItems.length >= total) ||
+      !data?.tracks?.next;
+
+    if (noMore) {
+      break;
+    }
+  }
+
+  const trackItems = dedupeTracksById(rawItems);
   const mapped = trackItems.map(mapTrack);
   const selectedTracks = pickTopTracks(mapped, 6);
 
   return {
-    country_code: countryCode,
-    year,
+    country_code: market,
+    year: yearNum,
     tracks: selectedTracks,
     message:
       selectedTracks.length === 0

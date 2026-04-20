@@ -3,12 +3,16 @@ import type { ChatContext, ChatMessage, PlaylistResponse } from "./types";
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
 
 async function parseError(response: Response, fallbackMessage: string): Promise<never> {
+  // Read body once. Do not wrap our own `throw new Error(...)` in try/catch or we
+  // accidentally replace the server's `error` message with a generic fallback.
+  let detail: string | undefined;
   try {
     const data = (await response.json()) as { error?: string };
-    throw new Error(data.error || `${fallbackMessage} (${response.status})`);
+    detail = typeof data.error === "string" ? data.error : undefined;
   } catch {
-    throw new Error(`${fallbackMessage} (${response.status})`);
+    // Non-JSON body (e.g. HTML from a proxy) — fall through to generic message.
   }
+  throw new Error(detail?.trim() || `${fallbackMessage} (${response.status})`);
 }
 
 export async function getPlaylist(
