@@ -1,3 +1,5 @@
+const { enrichTrackWithItunesPreview } = require("./itunes");
+
 const SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token";
 const SPOTIFY_SEARCH_URL = "https://api.spotify.com/v1/search";
 
@@ -144,11 +146,15 @@ async function fetchPlaylistTracks(countryCode, year) {
   const trackItems = dedupeTracksById(rawItems);
   const mapped = trackItems.map(mapTrack);
   const selectedTracks = pickTopTracks(mapped, 6);
+  // Spotify often omits preview_url; fill from iTunes Search when possible so the app can play clips.
+  const tracksWithPreviews = await Promise.all(
+    selectedTracks.map((t) => enrichTrackWithItunesPreview(t))
+  );
 
   return {
     country_code: market,
     year: yearNum,
-    tracks: selectedTracks,
+    tracks: tracksWithPreviews,
     message:
       selectedTracks.length === 0
         ? "No tracks found for this country/year combination."

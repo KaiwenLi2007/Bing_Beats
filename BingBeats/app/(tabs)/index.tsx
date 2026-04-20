@@ -1,15 +1,29 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { StyleProp, TextStyle } from "react-native";
 import {
   Animated,
   FlatList,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
   useWindowDimensions,
   View
 } from "react-native";
+import Reanimated, {
+  Easing,
+  FadeIn,
+  FadeInDown,
+  FadeInUp,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withSpring,
+  withTiming
+} from "react-native-reanimated";
 import Slider from "@react-native-community/slider";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
@@ -26,11 +40,167 @@ const CURRENT_YEAR = new Date().getFullYear();
 
 type CountryViewMode = "featured" | "globe";
 
+/** Gentle vertical drift on the tagline (continuous, low amplitude). */
+function FloatingSubtitle({ style, children }: { children: string; style: TextStyle }) {
+  const y = useSharedValue(0);
+
+  useEffect(() => {
+    y.value = withRepeat(
+      withSequence(
+        withTiming(-3, { duration: 2200, easing: Easing.inOut(Easing.sin) }),
+        withTiming(3, { duration: 2200, easing: Easing.inOut(Easing.sin) })
+      ),
+      -1,
+      true
+    );
+  }, [y]);
+
+  const drift = useAnimatedStyle(() => ({
+    transform: [{ translateY: y.value }]
+  }));
+
+  return (
+    <Reanimated.Text
+      entering={FadeInDown.delay(140).duration(480).springify()}
+      style={[style, drift]}
+    >
+      {children}
+    </Reanimated.Text>
+  );
+}
+
+/** Subtle scale pop when the year value changes (slider). */
+function PoppingYear({
+  textStyle,
+  value
+}: {
+  textStyle: StyleProp<TextStyle>;
+  value: number;
+}) {
+  const scale = useSharedValue(1);
+  const didMount = useRef(false);
+
+  useEffect(() => {
+    if (!didMount.current) {
+      didMount.current = true;
+      return;
+    }
+    scale.value = withSequence(
+      withSpring(1.07, { damping: 14, stiffness: 260 }),
+      withSpring(1, { damping: 16, stiffness: 220 })
+    );
+  }, [value, scale]);
+
+  const pop = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }]
+  }));
+
+  return (
+    <Reanimated.Text style={[textStyle, pop]}>{String(value)}</Reanimated.Text>
+  );
+}
+
+const WORD_FIRST = "Bing";
+const WORD_SECOND = "Beats";
+
+/** One letter: staggered entrance; colour comes from a single accent half (“Beats”), not a rainbow. */
+function PlayfulLetter({
+  accent,
+  accentColor,
+  index,
+  letter
+}: {
+  accent: boolean;
+  accentColor: string;
+  index: number;
+  letter: string;
+}) {
+  return (
+    <Reanimated.Text
+      entering={FadeInDown.delay(38 * index).duration(420).springify()}
+      style={[
+        styles.playfulLetter,
+        accent ? { color: accentColor } : styles.playfulLetterIce,
+        accent && styles.playfulLetterAccentWeight
+      ]}
+    >
+      {letter}
+    </Reanimated.Text>
+  );
+}
+
+/** Bold two-beat wordmark: cool “Bing”, one hot “Beats” + accent dot — minimal colour, strong type. */
+function PlayfulWordmark() {
+  const cycling = useCyclingTheme();
+  const dotPulse = useSharedValue(1);
+
+  useEffect(() => {
+    dotPulse.value = withRepeat(
+      withSequence(
+        withSpring(1.1, { damping: 12, stiffness: 180 }),
+        withSpring(1, { damping: 14, stiffness: 200 })
+      ),
+      -1,
+      true
+    );
+  }, [dotPulse]);
+
+  const dotBounce = useAnimatedStyle(() => ({
+    transform: [{ scale: dotPulse.value }]
+  }));
+
+  const accent = cycling.accent;
+  const first = WORD_FIRST.split("");
+  const second = WORD_SECOND.split("");
+
+  return (
+    <View style={styles.wordmarkRow}>
+      <View style={styles.playfulLettersWrap}>
+        <View style={styles.playfulWordParts}>
+          {first.map((letter, i) => (
+            <PlayfulLetter
+              key={`b-${i}`}
+              accent={false}
+              accentColor={accent}
+              index={i}
+              letter={letter}
+            />
+          ))}
+          <View style={styles.wordmarkGap} />
+          {second.map((letter, i) => (
+            <PlayfulLetter
+              key={`t-${i}`}
+              accent
+              accentColor={accent}
+              index={i + first.length}
+              letter={letter}
+            />
+          ))}
+        </View>
+      </View>
+      <Reanimated.View
+        entering={FadeIn.delay(110).duration(380)}
+        accessibilityLabel=""
+        style={[
+          styles.brandDot,
+          styles.brandDotPlayful,
+          { backgroundColor: accent },
+          dotBounce
+        ]}
+      />
+    </View>
+  );
+}
+
 export default function HomeScreen() {
   const router = useRouter();
   const cycling = useCyclingTheme();
   const { height: windowHeight } = useWindowDimensions();
-  const globeHeight = Math.round(windowHeight * 0.55);
+  /** Keep the map compact so the year slider and Discover stay on screen (55% was too tall on phones). */
+  const globeHeight = useMemo(() => {
+    const raw = Math.round(windowHeight * 0.33);
+    return Math.min(Math.max(raw, 196), 280);
+  }, [windowHeight]);
 
   /** Quantize hue so Mapbox injects run ~24× per full spectrum loop (avoids WebView spam). */
   const globeHueBucket = Math.floor(cycling.hue / 15);
@@ -106,14 +276,14 @@ export default function HomeScreen() {
       <SafeAreaView style={styles.safe} edges={["top"]}>
         <View style={styles.container}>
         <View style={styles.headerBlock}>
-          <View style={styles.wordmarkRow}>
-            <Text style={styles.displayTitle}>BingBeats</Text>
-            <View style={[styles.brandDot, { backgroundColor: cycling.accent }]} accessibilityLabel="" />
-          </View>
-          <Text style={styles.subtitle}>Discover music across time and space</Text>
+          <PlayfulWordmark />
+          <FloatingSubtitle style={styles.subtitle}>
+            Discover music across time and space
+          </FloatingSubtitle>
         </View>
 
-        <View
+        <Reanimated.View
+          entering={FadeInDown.delay(200).duration(450).springify()}
           style={styles.segmentShell}
           onLayout={(e) => setSegmentWidth(e.nativeEvent.layout.width)}
         >
@@ -162,7 +332,7 @@ export default function HomeScreen() {
               </Text>
             </Pressable>
           </View>
-        </View>
+        </Reanimated.View>
 
         {countryViewMode === "featured" ? (
           <FlatList
@@ -216,10 +386,51 @@ export default function HomeScreen() {
           </View>
         )}
 
-        <View style={styles.yearBlock}>
-          <Text style={styles.yearHero}>{yearDisplay}</Text>
-          <Text style={styles.yearMicro}>Year</Text>
-        </View>
+        <Reanimated.View
+          entering={FadeInUp.delay(260).duration(480).springify()}
+          style={styles.yearBlock}
+        >
+          {countryViewMode === "globe" ? (
+            <View style={styles.yearGlobeRow}>
+              <View style={styles.yearGlobeYearCol}>
+                <PoppingYear textStyle={styles.yearHeroGlobeCompact} value={yearDisplay} />
+                <Reanimated.Text entering={FadeIn.delay(40)} style={styles.yearMicro}>
+                  Year
+                </Reanimated.Text>
+              </View>
+              <View style={styles.yearGlobeCountryCol}>
+                {selectedCountry ? (
+                  <Reanimated.View
+                    key={selectedCountry.code}
+                    entering={FadeIn.duration(320).springify()}
+                    style={styles.globeCountryAnimated}
+                  >
+                    <Text style={styles.globeSelectedFlag} numberOfLines={1}>
+                      {selectedCountry.flag}
+                    </Text>
+                    <Text style={styles.globeSelectedName} numberOfLines={2}>
+                      {selectedCountry.name}
+                    </Text>
+                  </Reanimated.View>
+                ) : (
+                  <Reanimated.Text
+                    entering={FadeIn.duration(280)}
+                    style={styles.globeSelectHint}
+                  >
+                    Tap the map to choose a country
+                  </Reanimated.Text>
+                )}
+              </View>
+            </View>
+          ) : (
+            <>
+              <PoppingYear textStyle={styles.yearHero} value={yearDisplay} />
+              <Reanimated.Text entering={FadeIn.delay(40)} style={styles.yearMicro}>
+                Year
+              </Reanimated.Text>
+            </>
+          )}
+        </Reanimated.View>
 
         <Slider
           maximumTrackTintColor={colors.overlay.white10}
@@ -232,10 +443,10 @@ export default function HomeScreen() {
           thumbTintColor={colors.text.primary}
           value={yearDisplay}
         />
-        <View style={styles.yearRangeRow}>
+        <Reanimated.View entering={FadeIn.delay(300).duration(400)} style={styles.yearRangeRow}>
           <Text style={styles.yearRangeEnd}>{MIN_YEAR}</Text>
           <Text style={styles.yearRangeEnd}>{CURRENT_YEAR}</Text>
-        </View>
+        </Reanimated.View>
 
         <Pressable
           accessibilityRole="button"
@@ -248,17 +459,20 @@ export default function HomeScreen() {
             pressed && canDiscover && styles.discoverButtonPressed
           ]}
         >
-          <Text
+          <Reanimated.Text
+            entering={FadeInUp.delay(320).duration(450).springify()}
             style={[styles.discoverLabel, !canDiscover && styles.discoverLabelDisabled]}
             numberOfLines={1}
           >
             Discover music
-          </Text>
-          <Ionicons
-            color={canDiscover ? colors.text.primary : colors.text.tertiary}
-            name="chevron-forward"
-            size={20}
-          />
+          </Reanimated.Text>
+          <Reanimated.View entering={FadeIn.delay(380)}>
+            <Ionicons
+              color={canDiscover ? colors.text.primary : colors.text.tertiary}
+              name="chevron-forward"
+              size={20}
+            />
+          </Reanimated.View>
         </Pressable>
         </View>
       </SafeAreaView>
@@ -286,17 +500,53 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xl
   },
   wordmarkRow: {
-    flexDirection: "row",
     alignItems: "center",
+    flexDirection: "row",
     gap: spacing.sm
   },
-  displayTitle: {
-    ...typography.display
+  playfulLettersWrap: {
+    flex: 1,
+    flexShrink: 1,
+    minWidth: 0
+  },
+  playfulWordParts: {
+    alignItems: "flex-end",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    rowGap: 2
+  },
+  wordmarkGap: {
+    width: spacing.sm
+  },
+  playfulLetter: {
+    fontSize: 40,
+    fontWeight: "800",
+    letterSpacing: -1.05,
+    lineHeight: 44,
+    marginRight: 0.5
+  },
+  playfulLetterIce: {
+    color: colors.text.primary,
+    ...Platform.select({
+      ios: {
+        textShadowColor: "rgba(0, 0, 0, 0.4)",
+        textShadowOffset: { width: 0, height: 2 },
+        textShadowRadius: 14
+      },
+      default: {}
+    })
+  },
+  playfulLetterAccentWeight: {
+    fontWeight: "900"
   },
   brandDot: {
     borderRadius: radii.full,
     height: spacing.sm,
     width: spacing.sm
+  },
+  brandDotPlayful: {
+    height: 11,
+    width: 11
   },
   subtitle: {
     ...typography.subtitle,
@@ -404,7 +654,51 @@ const styles = StyleSheet.create({
   },
   yearBlock: {
     alignItems: "center",
-    marginTop: spacing.md
+    marginTop: spacing.md,
+    width: "100%"
+  },
+  yearGlobeRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: spacing.md,
+    justifyContent: "space-between",
+    width: "100%"
+  },
+  yearGlobeYearCol: {
+    alignItems: "flex-start",
+    flexShrink: 0
+  },
+  yearGlobeCountryCol: {
+    alignItems: "flex-end",
+    flex: 1,
+    justifyContent: "center",
+    minWidth: 0
+  },
+  yearHeroGlobeCompact: {
+    ...typography.yearHero,
+    fontSize: 56,
+    letterSpacing: -2,
+    lineHeight: 60
+  },
+  globeSelectedFlag: {
+    fontSize: 28,
+    lineHeight: 32,
+    textAlign: "right"
+  },
+  globeSelectedName: {
+    ...typography.heading,
+    fontSize: 15,
+    marginTop: 2,
+    textAlign: "right"
+  },
+  globeCountryAnimated: {
+    alignItems: "flex-end",
+    maxWidth: "100%"
+  },
+  globeSelectHint: {
+    ...typography.caption,
+    color: colors.text.tertiary,
+    textAlign: "right"
   },
   yearHero: {
     ...typography.yearHero,

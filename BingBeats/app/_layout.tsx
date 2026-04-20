@@ -1,4 +1,5 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
 import { Stack } from 'expo-router';
 import * as SystemUI from 'expo-system-ui';
 import { StatusBar } from 'expo-status-bar';
@@ -19,6 +20,18 @@ export default function RootLayout() {
 
   useEffect(() => {
     SystemUI.setBackgroundColorAsync(APP_BG).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    void Audio.setAudioModeAsync({
+      allowsRecordingIOS: false,
+      interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
+      interruptionModeIOS: InterruptionModeIOS.DuckOthers,
+      playThroughEarpieceAndroid: false,
+      playsInSilentModeIOS: true,
+      shouldDuckAndroid: true,
+      staysActiveInBackground: false
+    });
   }, []);
 
   return (
