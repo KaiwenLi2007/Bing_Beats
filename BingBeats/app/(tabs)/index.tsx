@@ -30,6 +30,7 @@ import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useCyclingTheme } from "../contexts/CyclingGradientContext";
+import { useDiscovery } from "../contexts/DiscoveryContext";
 import { Globe } from "../components/Globe";
 import { COUNTRIES, flagEmoji, type CountryOption } from "../lib/countries";
 import { hslToHex } from "../lib/rainbowColors";
@@ -207,11 +208,17 @@ export default function HomeScreen() {
   const globeAccent = useMemo(() => hslToHex(globeHueBucket * 15, 88, 54), [globeHueBucket]);
 
   const [countryViewMode, setCountryViewMode] = useState<CountryViewMode>("featured");
-  const [selectedCountry, setSelectedCountry] = useState<CountryOption | null>(null);
-  const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  const {
+    country: selectedCountry,
+    setCountry: setSelectedCountry,
+    year: selectedYear,
+    setYear: setSelectedYear
+  } = useDiscovery();
 
   const [segmentWidth, setSegmentWidth] = useState(0);
   const segmentPillX = useRef(new Animated.Value(0)).current;
+  const [showChatHint, setShowChatHint] = useState(false);
+  const lastHintKeyRef = useRef<string | null>(null);
 
   const segmentHalfWidth = segmentWidth > 8 ? (segmentWidth - spacing.xs) / 2 : 0;
 
@@ -227,6 +234,27 @@ export default function HomeScreen() {
 
   const canDiscover = useMemo(() => {
     return Boolean(selectedCountry && selectedYear);
+  }, [selectedCountry, selectedYear]);
+
+  useEffect(() => {
+    if (!selectedCountry || !selectedYear) {
+      setShowChatHint(false);
+      return;
+    }
+
+    const hintKey = `${selectedCountry.code}-${selectedYear}`;
+    if (lastHintKeyRef.current === hintKey) {
+      return;
+    }
+
+    lastHintKeyRef.current = hintKey;
+    setShowChatHint(true);
+
+    const timer = setTimeout(() => {
+      setShowChatHint(false);
+    }, 6500);
+
+    return () => clearTimeout(timer);
   }, [selectedCountry, selectedYear]);
 
   function handleCountryPress(country: CountryOption) {
@@ -447,6 +475,27 @@ export default function HomeScreen() {
           <Text style={styles.yearRangeEnd}>{MIN_YEAR}</Text>
           <Text style={styles.yearRangeEnd}>{CURRENT_YEAR}</Text>
         </Reanimated.View>
+
+        {showChatHint && canDiscover ? (
+          <Reanimated.View entering={FadeInUp.duration(300)} style={styles.chatHintCard}>
+            <View style={styles.chatHintRow}>
+              <View style={[styles.chatHintIconWrap, { backgroundColor: cycling.accentDim }]}>
+                <Ionicons color={cycling.accent} name="chatbubbles" size={16} />
+              </View>
+              <View style={styles.chatHintCopy}>
+                <Text style={styles.chatHintTitle}>Playlist tip</Text>
+                <Text style={styles.chatHintText}>Open chat and type `/playlist` for instant picks.</Text>
+              </View>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setShowChatHint(false)}
+              style={({ pressed }) => [styles.chatHintDismiss, pressed && styles.chatHintDismissPressed]}
+            >
+              <Text style={styles.chatHintDismissText}>Got it</Text>
+            </Pressable>
+          </Reanimated.View>
+        ) : null}
 
         <Pressable
           accessibilityRole="button"
@@ -722,6 +771,49 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.text.tertiary,
     fontSize: 13
+  },
+  chatHintCard: {
+    backgroundColor: colors.bg.surface,
+    borderColor: colors.border.subtle,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    marginTop: spacing.base,
+    padding: spacing.md
+  },
+  chatHintRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: spacing.sm
+  },
+  chatHintIconWrap: {
+    alignItems: "center",
+    borderRadius: radii.full,
+    height: 28,
+    justifyContent: "center",
+    width: 28
+  },
+  chatHintCopy: {
+    flex: 1,
+    minWidth: 0
+  },
+  chatHintTitle: {
+    ...typography.subtitle,
+    fontSize: 13
+  },
+  chatHintText: {
+    ...typography.caption,
+    marginTop: 2
+  },
+  chatHintDismiss: {
+    alignSelf: "flex-end",
+    marginTop: spacing.sm
+  },
+  chatHintDismissPressed: {
+    opacity: 0.86
+  },
+  chatHintDismissText: {
+    ...typography.caption,
+    color: colors.text.secondary
   },
   discoverButton: {
     alignItems: "center",

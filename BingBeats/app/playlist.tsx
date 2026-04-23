@@ -20,6 +20,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Reanimated, { FadeIn, FadeInDown, FadeInUp } from "react-native-reanimated";
 
 import { useCyclingTheme } from "./contexts/CyclingGradientContext";
+import { useDiscovery } from "./contexts/DiscoveryContext";
 import { getPlaylist } from "./lib/api";
 import { flagEmoji } from "./lib/countries";
 import { colors, radii, spacing, typography } from "./lib/theme";
@@ -121,6 +122,7 @@ function BackButton({ onPress }: { onPress: () => void }) {
 export default function PlaylistScreen() {
   const router = useRouter();
   const cycling = useCyclingTheme();
+  const { setCountry, setYear } = useDiscovery();
   const { code, name, year } = useLocalSearchParams<{
     code?: string;
     name?: string;
@@ -138,6 +140,18 @@ export default function PlaylistScreen() {
   const [audioBusyId, setAudioBusyId] = useState<string | null>(null);
 
   const activeSoundRef = useRef<Audio.Sound | null>(null);
+
+  useEffect(() => {
+    if (!countryCode || !selectedYear) {
+      return;
+    }
+    setCountry({
+      code: countryCode,
+      name: countryName,
+      flag: flagEmoji(countryCode)
+    });
+    setYear(selectedYear);
+  }, [countryCode, countryName, selectedYear, setCountry, setYear]);
 
   const stopAndUnloadCurrent = useCallback(async () => {
     if (!activeSoundRef.current) {

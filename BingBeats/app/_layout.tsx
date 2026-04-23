@@ -4,9 +4,12 @@ import { Stack } from 'expo-router';
 import * as SystemUI from 'expo-system-ui';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { View } from 'react-native';
 import 'react-native-reanimated';
 
+import { ChatAssistant } from './components/ChatAssistant';
 import { CyclingGradientProvider } from './contexts/CyclingGradientContext';
+import { DiscoveryProvider } from './contexts/DiscoveryContext';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 const APP_BG = '#0a0a0a';
@@ -37,14 +40,19 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <CyclingGradientProvider>
-        <Stack
-          screenOptions={{
-            contentStyle: { backgroundColor: APP_BG },
-          }}>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-        </Stack>
-        <StatusBar style="light" />
+        <DiscoveryProvider>
+          <View style={{ flex: 1 }}>
+            <Stack
+              screenOptions={{
+                contentStyle: { backgroundColor: APP_BG },
+              }}>
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+            </Stack>
+            <ChatAssistant />
+            <StatusBar style="light" />
+          </View>
+        </DiscoveryProvider>
       </CyclingGradientProvider>
     </ThemeProvider>
   );

@@ -9,9 +9,10 @@ const ITUNES_SEARCH = "https://itunes.apple.com/search";
 /**
  * @param {string} trackName
  * @param {string} artistName
+ * @param {string | undefined} countryCode
  * @returns {Promise<string | null>}
  */
-async function fetchItunesPreviewUrl(trackName, artistName) {
+async function fetchItunesPreviewUrl(trackName, artistName, countryCode) {
   const name = String(trackName || "").trim();
   const artist = String(artistName || "").trim();
   if (!name && !artist) {
@@ -24,12 +25,14 @@ async function fetchItunesPreviewUrl(trackName, artistName) {
   url.searchParams.set("media", "music");
   url.searchParams.set("entity", "song");
   url.searchParams.set("limit", "8");
+  if (countryCode && String(countryCode).trim().length === 2) {
+    url.searchParams.set("country", String(countryCode).trim().toLowerCase());
+  }
 
   try {
-    const response = await fetch(url.toString(), {
-      headers: { "User-Agent": "BingBeatsServer/1.0" }
-    });
+    const response = await fetch(url.toString());
     if (!response.ok) {
+      console.warn("[iTunes] Non-200 response:", response.status, "term:", term);
       return null;
     }
     const data = await response.json();
@@ -52,17 +55,18 @@ async function fetchItunesPreviewUrl(trackName, artistName) {
       }
     }
     return null;
-  } catch {
+  } catch (err) {
+    console.warn("[iTunes] Preview lookup failed:", err?.message || err);
     return null;
   }
 }
 
 /** @param {object} track */
-async function enrichTrackWithItunesPreview(track) {
+async function enrichTrackWithItunesPreview(track, countryCode) {
   if (track.preview_url) {
     return track;
   }
-  const preview = await fetchItunesPreviewUrl(track.name, track.artist);
+  const preview = await fetchItunesPreviewUrl(track.name, track.artist, countryCode);
   if (!preview) {
     return track;
   }

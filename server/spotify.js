@@ -148,13 +148,18 @@ async function fetchPlaylistTracks(countryCode, year) {
   const selectedTracks = pickTopTracks(mapped, 6);
   // Spotify often omits preview_url; fill from iTunes Search when possible so the app can play clips.
   const tracksWithPreviews = await Promise.all(
-    selectedTracks.map((t) => enrichTrackWithItunesPreview(t))
+    selectedTracks.map((t) => enrichTrackWithItunesPreview(t, market))
+  );
+  const previewCount = tracksWithPreviews.filter((t) => Boolean(t.preview_url)).length;
+  console.log(
+    `[Playlist] ${market}-${yearNum}: ${tracksWithPreviews.length} tracks, ${previewCount} with previews`
   );
 
   return {
     country_code: market,
     year: yearNum,
     tracks: tracksWithPreviews,
+    preview_count: previewCount,
     message:
       selectedTracks.length === 0
         ? "No tracks found for this country/year combination."

@@ -15,9 +15,19 @@ export interface PlaylistResponse {
   tracks: Track[];
 }
 
+/** Tracks returned with a chat reply so the UI can mirror the in-app playlist. */
+export interface ChatPlaylistSnapshot {
+  country_code: string;
+  year: number;
+  country_name: string;
+  tracks: Track[];
+}
+
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+  /** Present on assistant messages when the server attached a catalog playlist. */
+  playlist?: ChatPlaylistSnapshot;
 }
 
 export interface ChatContext {
