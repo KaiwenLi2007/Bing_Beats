@@ -47,6 +47,13 @@ app.get("/health", (req, res) => {
   });
 });
 
+app.get("/api/public-config", (req, res) => {
+  const mapboxPublicToken = process.env.MAPBOX_PUBLIC_TOKEN || "";
+  res.json({
+    mapbox_public_token: mapboxPublicToken
+  });
+});
+
 app.post("/api/playlist", async (req, res) => {
   const { country_code: countryCode, year } = req.body || {};
 

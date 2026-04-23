@@ -5,6 +5,8 @@ export const API_BASE_URL = (
   process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000"
 ).replace(/\/$/, "");
 
+let publicConfigCache: PublicConfig | null = null;
+
 function isLikelyNetworkFailure(err: unknown): boolean {
   if (!err || typeof err !== "object") {
     return false;
@@ -62,6 +64,25 @@ export async function getPlaylist(
 export interface ChatApiResult {
   response: string;
   playlist: ChatPlaylistSnapshot | null;
+}
+
+export interface PublicConfig {
+  mapbox_public_token: string;
+}
+
+export async function getPublicConfig(): Promise<PublicConfig> {
+  if (publicConfigCache) {
+    return publicConfigCache;
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/public-config`);
+  if (!response.ok) {
+    return parseError(response, "Failed to load public config");
+  }
+
+  const data = (await response.json()) as PublicConfig;
+  publicConfigCache = data;
+  return data;
 }
 
 /** Only role + content are sent to the server (no large playlist blobs in history). */

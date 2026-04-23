@@ -1,18 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
-import { Alert, Platform, StyleSheet, View } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, Alert, Platform, StyleSheet, Text, View } from "react-native";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 
+import { getPublicConfig } from "../lib/api";
 import { COUNTRIES } from "../lib/countries";
 import { colors } from "../lib/theme";
 
 /** Default height when parent does not pass `height` (avoids 0px WebView layout). */
 export const GLOBE_WEBVIEW_HEIGHT = 300;
-
-/**
- * Mapbox public token (pk.*). Prefer EXPO_PUBLIC_MAPBOX_TOKEN in .env so it is not
- * committed; until set, the literal placeholder keeps the bundle buildable.
- */
-const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? "MAPBOX_TOKEN";
 
 /** Spotify-style ISO 3166-1 alpha-2 codes we support in the app (same list as the flag grid). */
 const SUPPORTED_ISO_CODES = new Set(COUNTRIES.map((c) => c.code));
@@ -273,8 +268,36 @@ export function Globe({
   accentColor = DEFAULT_MAP_ACCENT
 }: GlobeProps) {
   const webViewRef = useRef<WebView>(null);
-  const html = useMemo(() => buildGlobeHtml(MAPBOX_TOKEN), []);
+  const [mapboxToken, setMapboxToken] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const html = useMemo(() => (mapboxToken ? buildGlobeHtml(mapboxToken) : ""), [mapboxToken]);
   const resolvedHeight = height ?? GLOBE_WEBVIEW_HEIGHT;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const cfg = await getPublicConfig();
+        const token = String(cfg.mapbox_public_token || "").trim();
+        if (!token) {
+          throw new Error("Mapbox token is missing on the API server.");
+        }
+        if (!cancelled) {
+          setMapboxToken(token);
+          setLoadError(null);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setLoadError(err instanceof Error ? err.message : "Could not load map configuration.");
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const injectAccent = useCallback((hex: string) => {
     const safe = JSON.stringify(hex);
@@ -345,10 +368,18 @@ export function Globe({
 
   return (
     <View style={[styles.wrap, { height: resolvedHeight }]}>
+      {!mapboxToken ? (
+        <View style={styles.loadingState}>
+          <ActivityIndicator color={colors.text.primary} size="small" />
+          <Text style={styles.loadingText}>
+            {loadError ? "Map unavailable. Check Render MAPBOX_PUBLIC_TOKEN." : "Loading map..."}
+          </Text>
+        </View>
+      ) : null}
       <WebView
         ref={webViewRef}
         source={{ html, baseUrl: "https://www.mapbox.com/" }}
-        style={[styles.webview, { height: resolvedHeight }]}
+        style={[styles.webview, { height: resolvedHeight, opacity: mapboxToken ? 1 : 0 }]}
         originWhitelist={["*"]}
         onMessage={handleMessage}
         javaScriptEnabled
@@ -388,5 +419,17 @@ const styles = StyleSheet.create({
   webview: {
     width: "100%",
     backgroundColor: colors.bg.primary
+  },
+  loadingState: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    backgroundColor: colors.bg.primary,
+    gap: 8,
+    justifyContent: "center",
+    zIndex: 2
+  },
+  loadingText: {
+    color: colors.text.secondary,
+    fontSize: 12
   }
 });
