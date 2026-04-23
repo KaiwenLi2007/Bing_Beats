@@ -26,7 +26,6 @@ import { colors, radii, spacing, typography } from "../lib/theme";
 import type { ChatContext, ChatMessage, ChatPlaylistSnapshot } from "../lib/types";
 
 const CURRENT_YEAR = new Date().getFullYear();
-const TAB_BAR_CLEARANCE = 52;
 
 function buildChatContext(
   countryName: string,
@@ -184,7 +183,7 @@ export function ChatAssistant() {
     }
   }
 
-  const fabBottom = insets.bottom + TAB_BAR_CLEARANCE;
+  const fabTop = insets.top + spacing.sm;
 
   return (
     <>
@@ -196,7 +195,7 @@ export function ChatAssistant() {
           styles.fab,
           {
             backgroundColor: cycling.accent,
-            bottom: fabBottom,
+            top: fabTop,
             opacity: pressed ? 0.92 : 1,
             shadowColor: cycling.accent
           }
