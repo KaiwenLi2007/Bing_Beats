@@ -1,0 +1,16 @@
+# Reflection
+
+## Process
+I started by planning the entire project with Claude to understand the scope and architecture. Then I chose to build the backend first because starting with APIs gives you a bigger picture of how everything connects. Once the Spotify and Gemini endpoints were working, I knew exactly what resources I had available when building the frontend. I worked on features incrementally, flag grid first (so I could test Spotify API without needing a real map), then playlist screen with audio playback, then the Gemini chatbot, then the 3D globe, and finally UI polish. I added features on top of each other.
+
+## AI Tools and Strategies
+I used Claude in the browser for planning and architecture, and Cursor Agent for code generation. I followed an agentic process similar to HW8, giving Cursor a big plan with explicit "STOP HERE" breakpoints, then test and commit before moving to the next step. For the UI polish pass, I had Claude generate a detailed design-system prompt that I then gave Cursor to implement. Gemini was used inside the app itself as the music guide chatbot feature but not as a development tool.
+
+## Why These Choices
+I split work between Claude and Cursor because Cursor is very good at writing code whith clear specifications, but it can't plan itself well. Claude is good at reasoning and making decisions. Having two AIs also let me double-check steps when I am unsure about anything. I chose Expo/React Native so the app would run on phones. I separated the backend (Render) from the frontend to keep Spotify and Gemini API keys private. Spotify is the obvious choice for music data, and Gemini was chosen because it can give good context about genres and cultural details from a specific country and era.
+
+## What Changed from Pre-113
+Before 113, I would have directly prompted for a big picture feature, then added one piece at a time by re-prompting, which led to me rewriting code constantly. The app would eventually just crash and it couldn't fix itself. Now I write a detailed SPEC file first so the AI understands the full architecture before generating code. I trust AI with straightforward implementation tasks (components, API wrappers, specific functions) when the spec is clear, but I don't trust it with the big-picture planning or quality assurance. Honestly, it feels slower in terms of raw coding speed because the apps I'm building now are so much more complex, but the actual productivity is way higher (before 113 my projects didn't have complete features and would crash when I tried to add anything new). Now I can ship something polished and working in a day.
+
+## With More Time
+If I had more time, I'd add a real database to persist user playlists and preferences. More importantly, I'd improve the chatbot - right now it only handles one message at a time without memory of previous messages, and if someone asks about something unrelated to music, there's no way to redirect the conversation back. I'd implement proper conversation history and a better system prompt so Gemini stays focused on being a music guide for the specific country and year the user is exploring. I'd also improve the UI with smoother animations and better loading states, since the Render free tier has 30-60 second cold starts that can feel broken without proper feedback to the user.

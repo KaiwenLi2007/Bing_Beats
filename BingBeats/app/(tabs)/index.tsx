@@ -232,16 +232,19 @@ export default function HomeScreen() {
     }).start();
   }, [countryViewMode, segmentWidth, segmentHalfWidth, segmentPillX]);
 
+  /** Check if the user has selected a country and year. */
   const canDiscover = useMemo(() => {
     return Boolean(selectedCountry && selectedYear);
   }, [selectedCountry, selectedYear]);
 
+  /** Show a hint to the user to open the chatbox. */
   useEffect(() => {
     if (!selectedCountry || !selectedYear) {
       setShowChatHint(false);
       return;
     }
 
+    
     const hintKey = `${selectedCountry.code}-${selectedYear}`;
     if (lastHintKeyRef.current === hintKey) {
       return;
@@ -250,6 +253,7 @@ export default function HomeScreen() {
     lastHintKeyRef.current = hintKey;
     setShowChatHint(true);
 
+    /** Close the hint after 6.5 seconds. */
     const timer = setTimeout(() => {
       setShowChatHint(false);
     }, 6500);
@@ -257,6 +261,8 @@ export default function HomeScreen() {
     return () => clearTimeout(timer);
   }, [selectedCountry, selectedYear]);
 
+
+  /** Handle the country press event. */
   function handleCountryPress(country: CountryOption) {
     setSelectedCountry(country);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
